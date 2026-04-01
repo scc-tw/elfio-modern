@@ -33,6 +33,12 @@
 #include "editor/section_entry.hpp"
 #include "editor/segment_entry.hpp"
 #include "editor/symbol_builder.hpp"
+#include "editor/relocation_builder.hpp"
+#include "editor/dynamic_builder.hpp"
+#include "editor/note_builder.hpp"
+#include "editor/array_builder.hpp"
+#include "editor/modinfo_builder.hpp"
+#include "editor/versym_builder.hpp"
 #include "editor/layout.hpp"
 #include "editor/elf_editor.hpp"
 

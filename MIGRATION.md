@@ -332,6 +332,12 @@ for (auto rel : file->rels(rel_sec)) {
     uint64_t symbol = rel.symbol();
     uint64_t type   = rel.type();
 }
+
+// ---- New (writing relocations) ----
+elfio::relocation_builder<elfio::elf64_traits> rb;
+rb.add_rela(0x10, 1, elfio::R_X86_64_64, 0);
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto rela_data = rb.build_rela(conv);
 ```
 
 ## 8. Dynamic Section
@@ -354,6 +360,15 @@ for (auto d : file->dynamics(dyn_sec, dynstr)) {
         std::cout << "Needs: " << d.string_value() << "\n";
     if (d.is_null()) break;
 }
+
+// ---- New (writing dynamic section) ----
+elfio::string_table_builder dynstr_b;
+elfio::dynamic_builder<elfio::elf64_traits> db;
+db.add_needed("libc.so.6");
+db.add_soname("mylib.so");
+db.add(elfio::DT_FLAGS, elfio::DF_BIND_NOW);
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto dyn_data = db.build(dynstr_b, conv);
 ```
 
 ## 9. Note Sections
@@ -381,6 +396,12 @@ for (auto seg : file->segments()) {
         for (auto note : file->notes(seg)) { ... }
     }
 }
+
+// ---- New (writing notes) ----
+elfio::note_builder nb;
+nb.add("GNU", elfio::NT_GNU_BUILD_ID, build_id_data);
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto note_data = nb.build(conv);  // 4-byte aligned automatically
 ```
 
 ## 10. Version Symbols (new feature: lazy views)
@@ -391,11 +412,18 @@ ELFIO::versym_section_accessor versym(reader, versym_sec);
 Elf_Half value;
 versym.get_entry(0, value);
 
-// ---- New ----
+// ---- New (reading) ----
 elfio::versym_range vsyms{versym_sec.data(), &file->convertor()};
 for (auto v : vsyms) {
     Elf_Half val = v.value();
 }
+
+// ---- New (writing) ----
+elfio::versym_builder vb;
+vb.add(0);  // VER_NDX_LOCAL
+vb.add(1);  // VER_NDX_GLOBAL
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto data = vb.build(conv);
 ```
 
 ## 11. Module Info
@@ -406,12 +434,18 @@ ELFIO::modinfo_section_accessor modinfo(reader, modinfo_sec);
 std::string field, value;
 modinfo.get_attribute(0, field, value);
 
-// ---- New (zero-copy, range-based) ----
+// ---- New (reading, zero-copy, range-based) ----
 elfio::modinfo_range mi{modinfo_sec.data()};
 for (auto attr : mi) {
     std::string_view key   = attr.key();
     std::string_view value = attr.value();
 }
+
+// ---- New (writing) ----
+elfio::modinfo_builder mb;
+mb.add("license", "GPL");
+mb.add("author", "John Doe");
+auto data = mb.build();  // NUL-terminated "key=value" pairs
 ```
 
 ## 12. Array Sections (.init_array, .fini_array)
@@ -422,13 +456,20 @@ ELFIO::array_section_accessor<Elf64_Addr> arr(reader, init_array_sec);
 Elf64_Addr addr;
 arr.get_entry(0, addr);
 
-// ---- New ----
+// ---- New (reading) ----
 elfio::array_range<uint64_t> arr{init_array_sec.data(), &file->convertor()};
 for (auto entry : arr) {
     uint64_t addr = entry.value();
 }
 // Or by index:
 uint64_t first = arr[0].value();
+
+// ---- New (writing) ----
+elfio::array_builder<uint64_t> ab;
+ab.add(0x400100);
+ab.add(0x400200);
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto arr_data = ab.build(conv);
 ```
 
 ## 13. Hash Functions

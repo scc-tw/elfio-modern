@@ -32,13 +32,13 @@ Zero-copy parsing, compile-time polymorphism via traits, lazy evaluation, monadi
 | Sections | `section_ref<T>` / `section_range<T>` | `section_entry<T>` |
 | Segments | `segment_ref<T>` / `segment_range<T>` | `segment_entry<T>` |
 | Symbol tables | `symbol_ref<T>` / `symbol_range<T>` | `symbol_builder<T>` |
-| Relocations (REL/RELA) | `rel_ref<T>` / `rela_ref<T>` | — |
-| Dynamic section | `dynamic_ref<T>` / `dynamic_range<T>` | — |
-| Notes | `note_ref` / `note_range` | — |
+| Relocations (REL/RELA) | `rel_ref<T>` / `rela_ref<T>` | `relocation_builder<T>` |
+| Dynamic section | `dynamic_ref<T>` / `dynamic_range<T>` | `dynamic_builder<T>` |
+| Notes | `note_ref` / `note_range` | `note_builder` |
 | String tables | `string_table_view` | `string_table_builder` |
-| Version symbols | `versym_range` / `verneed_range` / `verdef_range` | — |
-| Module info | `modinfo_range` | — |
-| Array sections | `array_range<T>` | — |
+| Version symbols | `versym_range` / `verneed_range` / `verdef_range` | `versym_builder` |
+| Module info | `modinfo_range` | `modinfo_builder` |
+| Array sections | `array_range<T>` | `array_builder<T>` |
 | Hash functions | `elf_hash()` / `elf_gnu_hash()` | — |
 | Dump/formatting | `str_file_type()`, `str_machine()`, etc. | — |
 
@@ -251,6 +251,120 @@ std::ofstream out("output.o", std::ios::binary);
 out.write(result->data(), static_cast<std::streamsize>(result->size()));
 ```
 
+### Build relocations
+
+```cpp
+elfio::relocation_builder<elfio::elf64_traits> rb;
+rb.add_rela(0x10, 1, elfio::R_X86_64_64, 0);     // offset, sym_idx, type, addend
+rb.add_rela(0x20, 2, elfio::R_X86_64_PC32, -4);
+
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto rela_data = rb.build_rela(conv);
+
+auto& rela_sec = ed.add_section(".rela.text", elfio::SHT_RELA, elfio::SHF_INFO_LINK);
+rela_sec.set_data(rela_data.data(), rela_data.size());
+rela_sec.set_entry_size(sizeof(elfio::Elf64_Rela));
+rela_sec.set_link(symtab_index);  // index of .symtab
+rela_sec.set_info(text_index);    // index of .text
+
+// REL (without addend) works the same way:
+rb.add_rel(0x10, 1, elfio::R_X86_64_64);
+auto rel_data = rb.build_rel(conv);
+```
+
+### Build dynamic section
+
+```cpp
+elfio::string_table_builder dynstr;
+elfio::dynamic_builder<elfio::elf64_traits> db;
+
+db.add_needed("libc.so.6");         // DT_NEEDED with string lookup
+db.add_needed("libm.so.6");
+db.add_soname("mylib.so");          // DT_SONAME
+db.add_runpath("/opt/lib");         // DT_RUNPATH
+db.add(elfio::DT_FLAGS, elfio::DF_BIND_NOW);  // raw tag+value
+
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto dyn_data = db.build(dynstr, conv);  // strings resolved into dynstr
+
+auto& dynstr_sec = ed.add_section(".dynstr", elfio::SHT_STRTAB, elfio::SHF_ALLOC);
+dynstr_sec.set_data(dynstr.data());
+
+auto& dyn_sec = ed.add_section(".dynamic", elfio::SHT_DYNAMIC,
+                                elfio::SHF_ALLOC | elfio::SHF_WRITE);
+dyn_sec.set_data(dyn_data.data(), dyn_data.size());
+dyn_sec.set_entry_size(sizeof(elfio::Elf64_Dyn));
+dyn_sec.set_link(dynstr_sec_index);
+```
+
+### Build notes
+
+```cpp
+elfio::note_builder nb;
+
+// GNU build ID
+std::vector<char> build_id = {'\x01', '\x02', '\x03', '\x04'};
+nb.add("GNU", elfio::NT_GNU_BUILD_ID, build_id);
+
+// Custom note
+nb.add("MyApp", 1, "payload", 7);
+
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto note_data = nb.build(conv);  // 4-byte aligned automatically
+
+auto& note_sec = ed.add_section(".note.gnu.build-id", elfio::SHT_NOTE, elfio::SHF_ALLOC);
+note_sec.set_data(note_data.data(), note_data.size());
+note_sec.set_addr_align(4);
+```
+
+### Build array sections (.init_array, .fini_array)
+
+```cpp
+elfio::array_builder<uint64_t> ab;
+ab.add(0x400100);  // address of init function 1
+ab.add(0x400200);  // address of init function 2
+
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto arr_data = ab.build(conv);
+
+auto& sec = ed.add_section(".init_array", elfio::SHT_INIT_ARRAY,
+                            elfio::SHF_ALLOC | elfio::SHF_WRITE);
+sec.set_data(arr_data.data(), arr_data.size());
+sec.set_entry_size(sizeof(uint64_t));
+sec.set_addr_align(8);
+```
+
+### Build module info (.modinfo)
+
+```cpp
+elfio::modinfo_builder mb;
+mb.add("license", "GPL");
+mb.add("author", "John Doe");
+mb.add("description", "My kernel module");
+
+auto data = mb.build();  // NUL-terminated "key=value" pairs
+
+auto& sec = ed.add_section(".modinfo", elfio::SHT_PROGBITS);
+sec.set_data(data.data(), data.size());
+```
+
+### Build version symbols (.gnu.version)
+
+```cpp
+elfio::versym_builder vb;
+vb.add(0);  // VER_NDX_LOCAL
+vb.add(1);  // VER_NDX_GLOBAL
+vb.add(2);  // user-defined version index
+
+elfio::endian_convertor conv(elfio::byte_order::little);
+auto data = vb.build(conv);
+
+auto& sec = ed.add_section(".gnu.version", elfio::SHT_GNU_versym, elfio::SHF_ALLOC);
+sec.set_data(data.data(), data.size());
+sec.set_entry_size(sizeof(elfio::Elf_Half));
+sec.set_link(dynsym_sec_index);
+```
+
 ### Zero-copy from mmap
 
 ```cpp
@@ -297,6 +411,12 @@ elfio.hpp                          <- single-include entry point
     +-- section_entry.hpp          <- mutable section with data
     +-- segment_entry.hpp          <- mutable segment
     +-- symbol_builder.hpp         <- symbol table construction
+    +-- relocation_builder.hpp     <- REL/RELA table construction
+    +-- dynamic_builder.hpp        <- dynamic section construction
+    +-- note_builder.hpp           <- note section construction
+    +-- array_builder.hpp          <- init/fini array construction
+    +-- modinfo_builder.hpp        <- kernel module info construction
+    +-- versym_builder.hpp         <- version symbol construction
     +-- string_table_builder.hpp   <- string table with deduplication
     +-- layout.hpp                 <- file offset computation
 ```
