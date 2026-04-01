@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(elfio-modern VERSION 1.1.1 LANGUAGES C CXX)
+project(elfio-modern VERSION 1.1.2 LANGUAGES C CXX)
 
 # --- Options ---
 option(ELFIO_BUILD_TESTS    "Build elfio-modern tests"              ON)
