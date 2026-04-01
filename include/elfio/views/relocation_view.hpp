@@ -37,7 +37,7 @@ public:
         : file_(file), offset_(offset), conv_(conv) {}
 
     [[nodiscard]] uint64_t r_offset() const noexcept { auto e = entry(); return e ? cvt(e->r_offset) : 0; }
-    [[nodiscard]] uint64_t r_info()   const noexcept { auto e = entry(); return e ? cvt(e->r_info)   : 0; }
+    [[nodiscard]] uint64_t r_info()   const noexcept { auto e = entry(); return e ? static_cast<uint64_t>(cvt(e->r_info)) : 0; }
     [[nodiscard]] uint64_t symbol()   const noexcept { return Traits::r_sym(r_info()); }
     [[nodiscard]] uint64_t type()     const noexcept { return Traits::r_type(r_info()); }
 };
@@ -65,7 +65,7 @@ public:
         : file_(file), offset_(offset), conv_(conv) {}
 
     [[nodiscard]] uint64_t r_offset() const noexcept { auto e = entry(); return e ? cvt(e->r_offset) : 0; }
-    [[nodiscard]] uint64_t r_info()   const noexcept { auto e = entry(); return e ? cvt(e->r_info)   : 0; }
+    [[nodiscard]] uint64_t r_info()   const noexcept { auto e = entry(); return e ? static_cast<uint64_t>(cvt(e->r_info)) : 0; }
     [[nodiscard]] int64_t  r_addend() const noexcept { auto e = entry(); return e ? cvt(e->r_addend) : 0; }
     [[nodiscard]] uint64_t symbol()   const noexcept { return Traits::r_sym(r_info()); }
     [[nodiscard]] uint64_t type()     const noexcept { return Traits::r_type(r_info()); }
