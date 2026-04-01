@@ -1,0 +1,10 @@
+function(elfio_add_test name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE elfio::elfio-modern GTest::gtest_main)
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+elfio_add_test(core_test)
+elfio_add_test(platform_test)
+elfio_add_test(view_test)
+elfio_add_test(editor_test)
