@@ -202,11 +202,11 @@ private:
         ehdr.e_shstrndx  = conv_(shstrndx);
 
         // Entry, offsets, counts — need type cast for 32 vs 64 bit
-        using addr_t = typename Traits::address_type;
-        using off_t  = typename Traits::offset_type;
+        using addr_t    = typename Traits::address_type;
+        using elf_off_t = typename Traits::offset_type;
         ehdr.e_entry     = conv_(static_cast<addr_t>(entry_));
-        ehdr.e_phoff     = conv_(static_cast<off_t>(lr.phoff));
-        ehdr.e_shoff     = conv_(static_cast<off_t>(lr.shoff));
+        ehdr.e_phoff     = conv_(static_cast<elf_off_t>(lr.phoff));
+        ehdr.e_shoff     = conv_(static_cast<elf_off_t>(lr.shoff));
 
         ehdr.e_phentsize = conv_(static_cast<Elf_Half>(
             segments_.empty() ? 0 : sizeof(typename Traits::phdr_type)));
@@ -218,9 +218,9 @@ private:
     }
 
     void write_segments(std::vector<char>& buf, uint64_t phoff) {
-        using phdr_t = typename Traits::phdr_type;
-        using off_t  = typename Traits::offset_type;
-        using addr_t = typename Traits::address_type;
+        using phdr_t    = typename Traits::phdr_type;
+        using elf_off_t = typename Traits::offset_type;
+        using addr_t    = typename Traits::address_type;
 
         for (std::size_t i = 0; i < segments_.size(); ++i) {
             const auto& seg = segments_[i];
@@ -228,7 +228,7 @@ private:
 
             phdr.p_type   = conv_(seg.type());
             phdr.p_flags  = conv_(seg.flags());
-            phdr.p_offset = conv_(static_cast<off_t>(seg.offset()));
+            phdr.p_offset = conv_(static_cast<elf_off_t>(seg.offset()));
             phdr.p_vaddr  = conv_(static_cast<addr_t>(seg.vaddr()));
             phdr.p_paddr  = conv_(static_cast<addr_t>(seg.paddr()));
 
