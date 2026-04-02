@@ -20,16 +20,18 @@ endif()
 
 # --- Compiler Warnings ---
 set(ELFIO_WARNINGS
-    -Wall -Wextra -Wpedantic -Werror
-    -Wshadow -Wconversion -Wsign-conversion
-    -Wnon-virtual-dtor -Wold-style-cast -Wcast-align
-    -Woverloaded-virtual -Wunused
-    -Wnull-dereference -Wdouble-promotion
-    -Wformat=2 -Wimplicit-fallthrough
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+        -Wall -Wextra -Wpedantic -Werror
+        -Wshadow -Wconversion -Wsign-conversion
+        -Wnon-virtual-dtor -Wold-style-cast -Wcast-align
+        -Woverloaded-virtual -Wunused
+        -Wnull-dereference -Wdouble-promotion
+        -Wformat=2 -Wimplicit-fallthrough>
+    $<$<CXX_COMPILER_ID:GNU>:
+        -Wduplicated-cond -Wduplicated-branches -Wlogical-op>
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4 /WX>
 )
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    list(APPEND ELFIO_WARNINGS -Wduplicated-cond -Wduplicated-branches -Wlogical-op)
-endif()
 
 # --- Library Target ---
 add_library(elfio-modern INTERFACE)
